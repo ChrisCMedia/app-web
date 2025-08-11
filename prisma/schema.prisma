@@ -1,0 +1,395 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// User model for authentication and user management
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  name      String
+  role      UserRole @default(MITARBEITER)
+  password  String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  tasks         Task[]
+  timeEntries   TimeEntry[]
+  auditLogs     AuditLog[]
+  workReports   WorkReport[]
+  constructionDiaries ConstructionDiary[]
+  appointments  Appointment[] @relation("AppointmentAssignees")
+  employee      Employee?
+  documents     Document[] @relation("DocumentUploadedBy")
+
+  @@map("users")
+}
+
+// Customer model for client management
+model Customer {
+  id      String  @id @default(cuid())
+  company String?
+  name    String
+  email   String  @unique
+  phone   String?
+  address String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  projects  Project[]
+  quotes    Quote[]
+  invoices  Invoice[]
+  acceptanceProtocols AcceptanceProtocol[]
+
+  @@map("customers")
+}
+
+// Project model for project management
+model Project {
+  id          String        @id @default(cuid())
+  name        String
+  description String?
+  customerId  String
+  status      ProjectStatus @default(PLANNING)
+  startDate   DateTime?
+  endDate     DateTime?
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  // Relations
+  customer     Customer       @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  tasks        Task[]
+  timeEntries  TimeEntry[]
+  documents    Document[]
+  appointments Appointment[]
+  workReports  WorkReport[]
+  constructionDiaries ConstructionDiary[]
+  acceptanceProtocols AcceptanceProtocol[]
+
+  @@map("projects")
+}
+
+// Task model for task management
+model Task {
+  id          String       @id @default(cuid())
+  title       String
+  description String?
+  projectId   String
+  assigneeId  String?
+  status      TaskStatus   @default(TODO)
+  priority    TaskPriority @default(MEDIUM)
+  dueDate     DateTime?
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  // Relations
+  project     Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  assignee    User?        @relation(fields: [assigneeId], references: [id])
+  timeEntries TimeEntry[]
+
+  @@map("tasks")
+}
+
+// Quote model for quotation management
+model Quote {
+  id         String      @id @default(cuid())
+  number     String      @unique
+  customerId String
+  items      Json
+  total      Decimal     @db.Decimal(10, 2)
+  status     QuoteStatus @default(DRAFT)
+  validUntil DateTime
+  createdAt  DateTime    @default(now())
+  updatedAt  DateTime    @updatedAt
+
+  // Relations
+  customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  @@map("quotes")
+}
+
+// Invoice model for invoice management
+model Invoice {
+  id         String        @id @default(cuid())
+  number     String        @unique
+  customerId String
+  items      Json
+  total      Decimal       @db.Decimal(10, 2)
+  status     InvoiceStatus @default(DRAFT)
+  dueDate    DateTime
+  paidAt     DateTime?
+  createdAt  DateTime      @default(now())
+  updatedAt  DateTime      @updatedAt
+
+  // Relations
+  customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  @@map("invoices")
+}
+
+// Time entry model for time tracking
+model TimeEntry {
+  id          String   @id @default(cuid())
+  userId      String
+  projectId   String?
+  taskId      String?
+  start       DateTime
+  end         DateTime?
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  project Project? @relation(fields: [projectId], references: [id])
+  task    Task?    @relation(fields: [taskId], references: [id])
+
+  @@map("time_entries")
+}
+
+// Material model for inventory management
+model Material {
+  id          String           @id @default(cuid())
+  name        String
+  description String?
+  unit        String
+  stock       Int              @default(0)
+  price       Decimal          @db.Decimal(10, 2)
+  category    MaterialCategory @default(OTHER)
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  @@map("materials")
+}
+
+// Document model for document management
+model Document {
+  id           String      @id @default(cuid())
+  name         String
+  type         DocumentType
+  url          String
+  projectId    String?
+  uploadedById String
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+
+  // Relations
+  project    Project? @relation(fields: [projectId], references: [id])
+  uploadedBy User     @relation("DocumentUploadedBy", fields: [uploadedById], references: [id])
+
+  @@map("documents")
+}
+
+// Audit log model for tracking changes
+model AuditLog {
+  id        String   @id @default(cuid())
+  userId    String
+  action    String
+  entity    String
+  entityId  String
+  changes   Json?
+  timestamp DateTime @default(now())
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("audit_logs")
+}
+
+// Appointment model for calendar management
+model Appointment {
+  id          String   @id @default(cuid())
+  title       String
+  description String?
+  start       DateTime
+  end         DateTime
+  projectId   String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  project   Project? @relation(fields: [projectId], references: [id])
+  assignees User[]   @relation("AppointmentAssignees")
+
+  @@map("appointments")
+}
+
+// Work report model for daily work reporting
+model WorkReport {
+  id          String   @id @default(cuid())
+  projectId   String
+  userId      String
+  date        DateTime
+  hours       Decimal  @db.Decimal(4, 2)
+  description String
+  approved    Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, userId, date])
+  @@map("work_reports")
+}
+
+// Construction diary model for daily construction logging
+model ConstructionDiary {
+  id          String   @id @default(cuid())
+  projectId   String
+  userId      String
+  date        DateTime
+  weather     String?
+  workers     Int      @default(0)
+  equipment   String?
+  notes       String
+  photos      Json?    // Array of photo URLs
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, date])
+  @@map("construction_diaries")
+}
+
+// Acceptance protocol model for project acceptance
+model AcceptanceProtocol {
+  id         String   @id @default(cuid())
+  projectId  String
+  customerId String
+  date       DateTime
+  items      Json     // Array of acceptance items
+  signature  String?  // Digital signature or path to signature file
+  approved   Boolean  @default(false)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  // Relations
+  project  Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  @@map("acceptance_protocols")
+}
+
+// Resource model for resource planning
+model Resource {
+  id           String          @id @default(cuid())
+  name         String
+  type         ResourceType
+  availability ResourceStatus  @default(AVAILABLE)
+  schedule     Json?           // Resource schedule data
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
+
+  @@map("resources")
+}
+
+// Employee model for personnel management
+model Employee {
+  id          String   @id @default(cuid())
+  userId      String   @unique
+  position    String
+  department  String?
+  hourlyRate  Decimal? @db.Decimal(8, 2)
+  skills      Json?    // Array of skills
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("employees")
+}
+
+// Enums
+enum UserRole {
+  ADMIN
+  MANAGER
+  MITARBEITER
+}
+
+enum ProjectStatus {
+  PLANNING
+  ACTIVE
+  ON_HOLD
+  COMPLETED
+  CANCELLED
+}
+
+enum TaskStatus {
+  TODO
+  IN_PROGRESS
+  REVIEW
+  DONE
+}
+
+enum TaskPriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+enum QuoteStatus {
+  DRAFT
+  SENT
+  ACCEPTED
+  REJECTED
+  EXPIRED
+}
+
+enum InvoiceStatus {
+  DRAFT
+  SENT
+  PAID
+  OVERDUE
+  CANCELLED
+}
+
+enum MaterialCategory {
+  WOOD
+  METAL
+  CONCRETE
+  TOOLS
+  HARDWARE
+  ELECTRICAL
+  PLUMBING
+  OTHER
+}
+
+enum DocumentType {
+  CONTRACT
+  INVOICE
+  PHOTO
+  PLAN
+  REPORT
+  CERTIFICATE
+  OTHER
+}
+
+enum ResourceType {
+  EQUIPMENT
+  VEHICLE
+  TOOL
+  SPACE
+}
+
+enum ResourceStatus {
+  AVAILABLE
+  IN_USE
+  MAINTENANCE
+  UNAVAILABLE
+}

@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npx claude-flow mcp:*)",
+      "Bash(claude mcp add claude-flow \"npx claude-flow mcp start\")",
+      "Bash(mkdir:*)"
+    ],
+    "deny": []
+  }
+}
