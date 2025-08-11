@@ -3,7 +3,10 @@
     "allow": [
       "Bash(npx claude-flow mcp:*)",
       "Bash(claude mcp add claude-flow \"npx claude-flow mcp start\")",
-      "Bash(mkdir:*)"
+      "Bash(mkdir:*)",
+      "Bash(git remote add:*)",
+      "Bash(git push:*)",
+      "Bash(npx vercel:*)"
     ],
     "deny": []
   }
